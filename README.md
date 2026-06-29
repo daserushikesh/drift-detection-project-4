@@ -1,449 +1,456 @@
-# 🚀 GitOps-Based Kubernetes Application Deployment using ArgoCD
+# Infrastructure Drift Detection and Automated Remediation using Terraform & AWS Lambda
 
-## 📖 Project Overview
+## Project Overview
 
-This project demonstrates a complete GitOps workflow using Docker, Kubernetes, GitHub, and ArgoCD.
+This project demonstrates an automated Infrastructure Drift Detection and Remediation system on AWS using Terraform, AWS Config, AWS Lambda, Amazon EventBridge, and Amazon CloudWatch.
 
-The application is containerized using Docker, deployed to Kubernetes, and automatically synchronized through ArgoCD whenever changes are pushed to GitHub.
-
----
-
-# 🎯 Objectives
-
-- Containerize a Flask application
-- Deploy application to Kubernetes
-- Implement GitOps workflow
-- Configure ArgoCD Auto Sync
-- Configure ArgoCD Self Heal
-- Demonstrate automatic deployments through Git commits
+The infrastructure is provisioned using Terraform. If someone manually modifies AWS resources outside Terraform, AWS Config detects the drift, and an AWS Lambda function automatically restores the infrastructure back to the desired Terraform state.
 
 ---
 
-# 🏗️ Architecture
+# Architecture
 
-```text
-Developer
-    │
-    ▼
-GitHub Repository
-    │
-    ▼
-ArgoCD
-    │
-    ▼
-Kubernetes Cluster
-    │
-    ▼
-Deployment + Service
-    │
-    ▼
-Application Pods
+```
+                Terraform Apply
+                       │
+                       ▼
+     EC2 + Security Group + S3 Bucket
+                       │
+                       ▼
+      Manual Changes from AWS Console
+                (Configuration Drift)
+                       │
+                       ▼
+              AWS Config detects Drift
+                       │
+                       ▼
+      EventBridge (Runs every 5 minutes)
+                       │
+                       ▼
+             AWS Lambda Function
+      Detect → Remediate → Log Actions
+                       │
+                       ▼
+          CloudWatch Logs & Monitoring
+                       │
+                       ▼
+      Terraform Plan → No Changes Found
 ```
 
 ---
 
-# 🛠️ Tech Stack
+# Technologies Used
 
-| Technology | Purpose |
-|------------|----------|
-| Python 3.11 | Flask Application |
-| Docker | Containerization |
-| Docker Hub | Image Registry |
-| Kubernetes | Container Orchestration |
-| Minikube | Local Kubernetes Cluster |
-| kubectl | Kubernetes CLI |
-| GitHub | Source Control |
-| ArgoCD | GitOps Controller |
-
----
-
-# 📋 Prerequisites
-
-Before starting, install:
-
-### Docker
-
-```bash
-docker --version
-```
-
-### kubectl
-
-```bash
-kubectl version --client
-```
-
-### Minikube
-
-```bash
-minikube version
-```
-
-### Git
-
-```bash
-git --version
-```
+* Terraform
+* AWS EC2
+* AWS Security Groups
+* Amazon S3
+* AWS Config
+* AWS Lambda (Python 3.11)
+* Amazon EventBridge
+* Amazon CloudWatch
+* IAM
 
 ---
 
-# Step 1: Install Docker
+# Project Structure
 
-## Add Docker Repository
-
-```bash
-sudo dnf -y install dnf-plugins-core
-
-sudo dnf config-manager \
---add-repo \
-https://download.docker.com/linux/fedora/docker-ce.repo
 ```
-
-## Install Docker
-
-```bash
-sudo dnf install -y \
-docker-ce \
-docker-ce-cli \
-containerd.io \
-docker-buildx-plugin \
-docker-compose-plugin
-```
-
-## Start Docker
-
-```bash
-sudo systemctl start docker
-
-sudo systemctl enable docker
-```
-
-## Allow Current User
-
-```bash
-sudo usermod -aG docker $USER
-```
-
-Logout and login again.
-
-## Verify
-
-```bash
-docker --version
-
-docker run hello-world
-```
-
-Expected:
-
-```text
-Hello from Docker!
-```
-
----
-
-# Step 2: Create Project Structure
-
-```bash
-mkdir -p ~/gitops-project/app
-
-cd ~/gitops-project/app
-```
-
-Project Structure:
-
-```text
-gitops-project/
+drift-detection-project/
 │
-├── app/
-│   ├── app.py
-│   ├── requirements.txt
-│   └── Dockerfile
+├── terraform/
+│   ├── main.tf
+│   ├── variables.tf
+│   ├── ec2.tf
+│   ├── security_group.tf
+│   ├── s3.tf
+│   ├── outputs.tf
+│   ├── config.tf
+│   └── lambda.tf
 │
-└── k8s/
-    ├── deployment.yaml
-    └── service.yaml
+├── lambda/
+│   └── remediation.py
+│
+└── README.md
 ```
 
 ---
 
-# Step 3: Create Flask Application
+# Prerequisites
 
-Create:
+Before starting, install the following tools.
 
-```bash
-nano app.py
-```
+## 1. Install Terraform
 
-Paste:
-
-```python
-from flask import Flask
-
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "Hello from GitOps Demo App - Version 1.0"
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
-```
-
-Save and Exit.
-
----
-
-# Step 4: Create requirements.txt
+Verify installation
 
 ```bash
-nano requirements.txt
-```
-
-Paste:
-
-```text
-flask==3.0.0
+terraform -version
 ```
 
 ---
 
-# Step 5: Create Dockerfile
+## 2. Install AWS CLI
+
+Verify installation
 
 ```bash
-nano Dockerfile
-```
-
-Paste:
-
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-
-COPY requirements.txt .
-
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY app.py .
-
-EXPOSE 5000
-
-CMD ["python", "app.py"]
+aws --version
 ```
 
 ---
 
-# Step 6: Build Docker Image
+## 3. Configure AWS Credentials
 
 ```bash
-docker build -t gitops-demo-app:v1 .
+aws configure
 ```
 
-Verify:
+Enter
 
-```bash
-docker images
+* AWS Access Key
+* AWS Secret Key
+* Region
+* Output Format
+
+Example
+
+```
+Region : us-east-1
+Output : json
 ```
 
 ---
 
-# Step 7: Run Container Locally
+## 4. Install VS Code
+
+Recommended Extensions
+
+* Terraform
+* Python
+* AWS Toolkit
+
+---
+
+# Step 1 – Clone the Repository
 
 ```bash
-docker run -d \
--p 5000:5000 \
---name gitops-test \
-gitops-demo-app:v1
-```
+git clone https://github.com/<your-username>/drift-detection-project.git
 
-Test:
-
-```bash
-curl http://localhost:5000
-```
-
-Expected:
-
-```text
-Hello from GitOps Demo App - Version 1.0
+cd drift-detection-project
 ```
 
 ---
 
-# Step 8: Push Image to Docker Hub
+# Step 2 – Initialize Terraform
 
-Login:
+Navigate to the terraform directory.
 
 ```bash
-docker login
+cd terraform
 ```
 
-Tag:
+Initialize Terraform.
 
 ```bash
-docker tag \
-gitops-demo-app:v1 \
-YOUR_DOCKERHUB_USERNAME/gitops-demo-app:v1
-```
-
-Push:
-
-```bash
-docker push \
-YOUR_DOCKERHUB_USERNAME/gitops-demo-app:v1
+terraform init
 ```
 
 ---
 
-# Step 9: Install kubectl
+# Step 3 – Validate Configuration
 
 ```bash
-curl -LO \
-"https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-
-chmod +x kubectl
-
-sudo mv kubectl /usr/local/bin/
+terraform validate
 ```
 
-Verify:
+Expected Output
+
+```
+Success! The configuration is valid.
+```
+
+---
+
+# Step 4 – Preview Infrastructure
 
 ```bash
-kubectl version --client
+terraform plan
 ```
+
+Terraform displays all resources that will be created.
 
 ---
 
-# Step 10: Install Minikube
+# Step 5 – Deploy Infrastructure
 
 ```bash
-curl -LO \
-https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-
-sudo install \
-minikube-linux-amd64 \
-/usr/local/bin/minikube
+terraform apply
 ```
 
-Verify:
+Type
+
+```
+yes
+```
+
+Terraform creates
+
+* EC2 Instance
+* Security Group
+* S3 Bucket
+* AWS Config
+* Lambda
+* EventBridge
+* IAM Roles
+* CloudWatch Log Group
+
+---
+
+# Step 6 – Verify Resources
+
+Open AWS Console.
+
+Verify
+
+### EC2
+
+* Running
+
+### Security Group
+
+Inbound Rules
+
+* Port 22
+* Port 80
+
+Allowed CIDR
+
+```
+10.0.0.0/8
+```
+
+### S3
+
+Verify
+
+* Versioning Enabled
+* Server-side Encryption Enabled
+
+---
+
+# Step 7 – Simulate Infrastructure Drift
+
+Open AWS Console.
+
+## Security Group Drift
+
+Modify
+
+SSH Rule
+
+```
+10.0.0.0/8
+```
+
+to
+
+```
+0.0.0.0/0
+```
+
+Add another inbound rule
+
+```
+Port 8080
+Source 0.0.0.0/0
+```
+
+---
+
+## EC2 Tag Drift
+
+Change
+
+```
+Environment = Production
+```
+
+to
+
+```
+Environment = Development
+```
+
+Add
+
+```
+ModifiedBy = ManualChange
+```
+
+---
+
+# Step 8 – Detect Drift
+
+Run
 
 ```bash
-minikube version
+terraform plan
+```
+
+Terraform should detect differences between the deployed infrastructure and the desired state.
+
+AWS Config also marks the resources as
+
+```
+NON_COMPLIANT
 ```
 
 ---
 
-# Step 11: Start Kubernetes Cluster
+# Step 9 – Lambda Auto Remediation
+
+Lambda automatically performs the following actions
+
+* Removes unauthorized tags
+* Restores required tags
+* Removes unauthorized Security Group rules
+* Restores approved inbound rules
+* Writes logs to CloudWatch
+
+---
+
+# Step 10 – Test Auto Remediation
+
+Instead of waiting for EventBridge,
+
+Open
+
+```
+AWS Lambda
+```
+
+Select
+
+```
+drift-detection-remediation
+```
+
+Create a Test Event
+
+```json
+{}
+```
+
+Click
+
+```
+Test
+```
+
+---
+
+# Step 11 – Verify Remediation
+
+Check
+
+### EC2 Tags
+
+```
+Environment = Production
+ManagedBy = Terraform
+```
+
+Removed
+
+```
+ModifiedBy
+```
+
+---
+
+### Security Group
+
+Only these rules should remain
+
+```
+22 → 10.0.0.0/8
+
+80 → 10.0.0.0/8
+```
+
+Port
+
+```
+8080
+```
+
+should be removed.
+
+---
+
+### CloudWatch
+
+Verify logs showing
+
+* Drift detected
+* Resources remediated
+* Successful execution
+
+---
+
+# Final Verification
+
+Run
 
 ```bash
-minikube start --driver=docker
+terraform plan
 ```
 
-Verify:
+Expected Output
+
+```
+No changes.
+
+Infrastructure matches the Terraform configuration.
+```
+
+---
+
+# Cleanup
+
+Destroy all AWS resources
 
 ```bash
-minikube status
-
-kubectl get nodes
+terraform destroy
 ```
 
-Expected:
+Type
 
-```text
-Ready
 ```
-
----
-
-# Step 12–25
-
-Continue the same format for:
-
-- deployment.yaml creation
-- service.yaml creation
-- Apply manifests
-- Verify Pods
-- Install ArgoCD
-- Expose ArgoCD UI
-- Get Admin Password
-- Push project to GitHub
-- Create ArgoCD Application
-- Enable Auto Sync
-- Enable Self Heal
-- Update Application v2
-- Build Docker Image v2
-- Push Docker Image v2
-- Update deployment.yaml
-- Git Commit
-- Git Push
-- Watch ArgoCD Deployment
-- Verify Rolling Update
-- Validate GitOps Workflow
-
----
-
-# 🔄 GitOps Workflow
-
-```text
-Developer Changes Code
-          │
-          ▼
-     Git Commit
-          │
-          ▼
-      Git Push
-          │
-          ▼
-       GitHub
-          │
-          ▼
-       ArgoCD
-          │
-          ▼
-    Kubernetes
-          │
-          ▼
- Rolling Update
-          │
-          ▼
- Application Updated
+yes
 ```
 
 ---
 
-# 📦 Deliverables
+# Key Features
 
-- Flask Application
-- Dockerfile
-- Docker Hub Image
-- Kubernetes Deployment
-- Kubernetes Service
-- GitHub Repository
-- ArgoCD Configuration
-- Auto Sync Enabled
-- Self Heal Enabled
+* Infrastructure as Code using Terraform
+* Automated Drift Detection
+* AWS Config Compliance Rules
+* Automatic Infrastructure Remediation
+* CloudWatch Logging
+* EventBridge Scheduling
+* Fully Automated AWS Infrastructure Management
 
 ---
 
-# 🎓 Key Learnings
+# Author
 
-- GitOps uses Git as the single source of truth.
-- ArgoCD automatically synchronizes cluster state.
-- Self Heal prevents configuration drift.
-- Kubernetes provides zero-downtime deployments.
-- Docker ensures application portability.
+**Rushikesh Dase**
 
----
+Cloud & DevOps Engineer
 
-# 🤝 Contributing
+GitHub: [https://github.com/<your-username>](https://github.com/daserushikesh)
 
-Fork the repository and create a feature branch.
-
-Submit a pull request with a detailed description of your changes.
-
----
-
-# 📜 License
-
-This project is intended for learning GitOps, Kubernetes, ArgoCD, and DevOps deployment practices.
+LinkedIn: www.linkedin.com/in/rushi-dase
